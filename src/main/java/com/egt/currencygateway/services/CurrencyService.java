@@ -1,10 +1,16 @@
 package com.egt.currencygateway.services;
 
 import com.egt.currencygateway.dto.FixerResponse;
+import com.egt.currencygateway.models.CurrencyData;
+import com.egt.currencygateway.repositories.CurrencyDataRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Service
 public class CurrencyService {
@@ -17,8 +23,12 @@ public class CurrencyService {
 
     private final RestTemplate restTemplate;
 
-    public CurrencyService(RestTemplate restTemplate) {
+    private CurrencyDataRepository currencyDataRepository;
+
+    @Autowired
+    public CurrencyService(RestTemplate restTemplate, CurrencyDataRepository currencyDataRepository) {
         this.restTemplate = restTemplate;
+        this.currencyDataRepository = currencyDataRepository;
     }
 
     // Scheduled task to fetch data every 1 hour
@@ -37,8 +47,12 @@ public class CurrencyService {
         }
     }
 
-    // Handle saving currency data
     private void saveCurrencyData(FixerResponse response) {
-        // Logic for saving to the database
+        CurrencyData currencyData = new CurrencyData(
+                response.getBase(),
+                LocalDateTime.ofEpochSecond(response.getTimestamp(), 0, ZoneOffset.UTC),
+                response.getRates()
+        );
+        currencyDataRepository.save(currencyData);
     }
 }
