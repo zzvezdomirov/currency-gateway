@@ -1,10 +1,13 @@
 package com.egt.currencygateway.services;
 
 import com.egt.currencygateway.dto.FixerResponse;
+import com.egt.currencygateway.dto.JsonCurrencyRequest;
+import com.egt.currencygateway.dto.XmlCurrencyRequest;
 import com.egt.currencygateway.models.CurrencyData;
 import com.egt.currencygateway.repositories.CurrencyDataRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -47,6 +50,32 @@ public class CurrencyService {
         }
     }
 
+    public ResponseEntity<?> processCurrentRequest(JsonCurrencyRequest request) {
+        // Handle request validation and fetching data
+        // Check for duplicate request ID, then fetch the current currency data from the database or cache
+        String data = "placeholder";
+        return ResponseEntity.ok(data); // return appropriate response
+    }
+
+    public ResponseEntity<?> processHistoryRequest(JsonCurrencyRequest request) {
+        // Check for duplicate request ID, then fetch currency history from the database for the given period
+
+        String historyData = "placeholder";
+        return ResponseEntity.ok(historyData); // return appropriate response
+    }
+
+    public ResponseEntity<?> processXmlRequest(XmlCurrencyRequest request) {
+        // Check for duplicate request ID
+//        if (request.get != null) {
+//            // Handle current currency request
+//            return ResponseEntity.ok(data);
+//        } else if (request.history != null) {
+//            // Handle currency history request
+//            return ResponseEntity.ok(historyData);
+//        }
+        return ResponseEntity.badRequest().build();
+    }
+
     private void saveCurrencyData(FixerResponse response) {
         CurrencyData currencyData = new CurrencyData(
                 response.getBase(),
@@ -55,4 +84,5 @@ public class CurrencyService {
         );
         currencyDataRepository.save(currencyData);
     }
+
 }
