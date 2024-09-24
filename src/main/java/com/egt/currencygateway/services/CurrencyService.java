@@ -1,88 +1,80 @@
 package com.egt.currencygateway.services;
 
+import com.egt.currencygateway.exceptions.ExternalApiException;
+import com.egt.currencygateway.entities.CurrencyData;
 import com.egt.currencygateway.dto.FixerResponse;
-import com.egt.currencygateway.dto.JsonCurrencyRequest;
-import com.egt.currencygateway.dto.XmlCurrencyRequest;
-import com.egt.currencygateway.models.CurrencyData;
+import com.egt.currencygateway.entities.RequestLog;
 import com.egt.currencygateway.repositories.CurrencyDataRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.egt.currencygateway.repositories.RequestLogRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.util.List;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class CurrencyService {
+
+    private final CurrencyDataRepository currencyDataRepository;
+    private final RequestLogRepository requestLogRepository;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final RestTemplate restTemplate;
+    private final RabbitTemplate rabbitTemplate;
 
     @Value("${fixer.api.url}")
     private String fixerApiUrl;
 
     @Value("${fixer.api.key}")
-    private String apiKey;
+    private String fixerApiKey;
 
-    private final RestTemplate restTemplate;
-
-    private CurrencyDataRepository currencyDataRepository;
-
-    @Autowired
-    public CurrencyService(RestTemplate restTemplate, CurrencyDataRepository currencyDataRepository) {
-        this.restTemplate = restTemplate;
-        this.currencyDataRepository = currencyDataRepository;
-    }
-
-    // Scheduled task to fetch data every 1 hour
-    @Scheduled(fixedRate = 3600000)
+    @Scheduled(fixedRate = 3600000) // Every 1 hour
     public void fetchCurrencyData() {
-        String url = fixerApiUrl + "?access_key=" + apiKey;
+        String apiUrl = fixerApiUrl + "?access_key=" + fixerApiKey;
+        FixerResponse response = restTemplate.getForObject(apiUrl, FixerResponse.class);
 
-        try {
-            FixerResponse response = restTemplate.getForObject(url, FixerResponse.class);
-            if (response != null && response.isSuccess()) {
-                saveCurrencyData(response);
-            }
-        } catch (Exception e) {
-            // TODO: Handle the error (log it or notify via error handling system)
-            System.err.println("Error fetching data from Fixer.io: " + e.getMessage());
+        if (response != null && response.isSuccess()) {
+            CurrencyData currencyData = new CurrencyData();
+            currencyData.setBaseCurrency(response.getBase());
+            currencyData.setTimestamp(LocalDateTime.now());
+            currencyData.setRates(response.getRates());
+            currencyDataRepository.save(currencyData);
+            log.info("Successfully fetched and saved currency data.");
+        } else {
+            log.error("Failed to fetch data from Fixer.io");
+            throw new ExternalApiException("Failed to fetch data from Fixer.io");
         }
     }
+    public void logRequest(String serviceName, String requestId, String clientId) {
+        RequestLog log = new RequestLog(serviceName, requestId, clientId, LocalDateTime.now());
+        requestLogRepository.save(log);
 
-    public ResponseEntity<?> processCurrentRequest(JsonCurrencyRequest request) {
-        // Handle request validation and fetching data
-        // Check for duplicate request ID, then fetch the current currency data from the database or cache
-        String data = "placeholder";
-        return ResponseEntity.ok(data); // return appropriate response
+        // Send to RabbitMQ
+        String message = "Service: " + serviceName + ", Request ID: " + requestId + ", Client ID: " + clientId;
+        rabbitTemplate.convertAndSend("logs-exchange", "", message);
     }
 
-    public ResponseEntity<?> processHistoryRequest(JsonCurrencyRequest request) {
-        // Check for duplicate request ID, then fetch currency history from the database for the given period
-
-        String historyData = "placeholder";
-        return ResponseEntity.ok(historyData); // return appropriate response
+    public boolean isDuplicateRequest(String requestId) {
+        if (redisTemplate.opsForSet().isMember("processedRequests", requestId)) {
+            return true;
+        }
+        redisTemplate.opsForSet().add("processedRequests", requestId);
+        return false;
     }
 
-    public ResponseEntity<?> processXmlRequest(XmlCurrencyRequest request) {
-        // Check for duplicate request ID
-//        if (request.get != null) {
-//            // Handle current currency request
-//            return ResponseEntity.ok(data);
-//        } else if (request.history != null) {
-//            // Handle currency history request
-//            return ResponseEntity.ok(historyData);
-//        }
-        return ResponseEntity.badRequest().build();
+    public CurrencyData getLatestCurrencyData(String currency) {
+        return currencyDataRepository.findTopByCurrencyOrderByTimestampDesc(currency);
     }
 
-    private void saveCurrencyData(FixerResponse response) {
-        CurrencyData currencyData = new CurrencyData(
-                response.getBase(),
-                LocalDateTime.ofEpochSecond(response.getTimestamp(), 0, ZoneOffset.UTC),
-                response.getRates()
-        );
-        currencyDataRepository.save(currencyData);
+    public List<CurrencyData> getCurrencyHistory(String currency, int period) {
+        LocalDateTime fromTime = LocalDateTime.now().minusHours(period);
+        return currencyDataRepository.findByCurrencyAndTimestampAfter(currency, fromTime);
     }
-
 }
