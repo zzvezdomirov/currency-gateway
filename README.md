@@ -54,13 +54,13 @@ RABBITMQ_PORT=5672
 # Fixer.io API Configuration
 FIXER_API_URL=https://data.fixer.io/api/latest
 FIXER_API_KEY=your_fixer_api_key
+```
 ## Docker Setup:
 
 The project uses Docker Compose to run PostgreSQL, Redis, RabbitMQ, and the application itself.
 
 Run the following command to start the services:
-
-```bash
+```
 docker-compose up --build
 ```
 
