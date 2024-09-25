@@ -30,22 +30,8 @@ public class AppConfig {
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
-
-        // Key serialization
         template.setKeySerializer(new StringRedisSerializer());
-
-        // Create and configure the ObjectMapper
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        objectMapper.registerModule(new JavaTimeModule());
-        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-
-        // Use the ObjectMapper with the Jackson2JsonRedisSerializer
-        Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(objectMapper, Object.class);
-
-        // Set the serializer for the values
-        template.setValueSerializer(serializer);
-
+        template.setValueSerializer(new StringRedisSerializer());
         return template;
     }
 }
