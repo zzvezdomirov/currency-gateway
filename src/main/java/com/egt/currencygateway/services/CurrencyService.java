@@ -62,18 +62,17 @@ public class CurrencyService {
     }
 
     public boolean isDuplicateRequest(String requestId) {
-        try {
-            if (redisTemplate.opsForSet().isMember("processedRequests", requestId)) {
-                log.info("Request ID {} is a duplicate", requestId);
-                return true;
-            }
-            redisTemplate.opsForSet().add("processedRequests", requestId);
-            log.info("Request ID {} added to processed requests", requestId);
-            return false;
-        } catch (Exception e) {
-            log.error("Error while checking Redis for request ID {}: {}", requestId, e.getMessage());
-            throw new RuntimeException("Unable to connect to Redis", e);
+        if (redisTemplate == null) {
+            log.error("RedisTemplate is not initialized");
+            throw new IllegalStateException("RedisTemplate is null");
         }
+
+        if (redisTemplate.opsForSet().isMember("processedRequests", requestId)) {
+            return true;
+        }
+        redisTemplate.opsForSet().add("processedRequests", requestId);
+
+        return false;
     }
 
     public CurrencyData getLatestCurrencyData(String currency) {
